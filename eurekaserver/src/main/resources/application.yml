@@ -1,0 +1,23 @@
+spring:
+  profiles:
+    active: standalone
+  jackson:
+    serialization:
+      FAIL_ON_EMPTY_BEANS: false
+eureka:
+  server:
+    use-read-only-response-cache: false
+    response-cache-auto-expiration-in-seconds: 10
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*' #在 Spring Boot 2.x 中为了安全期间，Actuator 只开放了两个端点 /actuator/health 和 /actuator/info。可以用此配置中设置打开。
+      base-path: /monitor #代表启用单独的url地址来监控 Spring Boot 应用，为了安全一般都启用独立的端口来访问后端的监控信息
+  server:
+    port: 8082 # 监控端口
+  endpoint:
+    shutdown:
+      enabled: true # 可以用此端口来
+
+
