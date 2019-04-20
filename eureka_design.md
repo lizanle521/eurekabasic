@@ -64,8 +64,42 @@ public interface LookupService<T> {
 - 服务信息的一致性问题
 
 #### 服务发现中 AP 优于 CP
+在实际生产环境中，服务注册以及发现中心保留可用以及过期的数据总比丢掉可用的数据好。
+这样的化，应用实例的注册信息在集群中的所有节点并不是强一致性的。这就需要客户端能够支持负载均衡以及失败重试。
 #### Peer to Peer架构
+副本之间部分主从，任何副本都可以接受写操作，然后每个副本之间相互进行数据的更新。
+由于每个副本都可以接受写请求，不存在写操作压力瓶颈。但是由于每个副本都可以写，各个副本之间的数据同步以及冲突处理是一个比较棘手的问题
+#### 客户端
+客户端通过如下配置eureka 的 peer节点：
+```text
+eureka:
+    client:
+        serviceUrl:
+            defaultZone:
+                http://host:port/eureka/
+
+```
+实际代码里支持preferSameZoneEureka,即有多个分区的化，优先选择与应用实例所在分区一样的其他服务的实例，如果没有找到则默认defaultZone.
+客户端使用quarantineSet维护一个不可用的eureka server列表，进行请求的时候，优先从可用列表中进行选择。如果请求失败则切换到下一个server
+默认重试次数等于3。
+另外为了防止每个client端都按配置文件制定的顺序进行请求造成eureka server节点请求分布不均衡的情况，client端有一个定时任务，每5分钟执行一次，
+属性并随机化server 列表。
+#### 服务端
+eureka server本身以来的eureka client,也就是说每个eureka server 是作为其他server的client。 在单个eureka server启动的时候，会有一个
+SyncUp的操作，通过uereka client请求其他eureka server节点中的一个节点获取注册的应用实例信息，然后复制到其他peer节点。
+eureka server在 在执行复制操作的时候，使用HEAD_REPLICATION 的http header 来将这个请求与不同应用实例的正常请求操作区分开来，表明这是一个
+复制请求，这样其他peer节点收到请求的时候，就不会再对其他peer节点接受到请求的时候，就不会再对他的peer节点进行复制操作，从而避免死循环。
+由于采用peer to peer的复制模式，重点要解决的是数据复制的冲突问题，针对这个问题，eureka采用如下两个方式来解决：
+- lastDirtyTimeStamp 标识
+- heartbeat 心跳
+针对数据的不一致，通常通过版本号来解决。最后在不同的副本之间只需要判断请求复制数据的版本号 和 本地数据的版本号高低就可以了。eureka没有直接使用
+版本号属性，而是采用一个叫做lastDirtyTimeStamp的字段来对比。
+如果开启`SyncWhenTimestampDiffers`配置（默认开启），当lastDirtyTimeStamp部位空的时候，就会进行相应的处理
+- 如果请求参数的lastDirtyTimeStamp值大于server本地实例，标示eureka之间的数据出现冲突，返回404，要求应用实例重新注册
+- 如果请求参数的lastDirtyTimeStamp值小雨server本地实例，且是peer节点的复制请求，标示数据冲突，返回409给peer节点，要求其同步自己最新的数据信息。
+peer节点的相互复制并不能保证所有操作都能成功，如果发现应用实例数据和某个server的数据不一致，应用实例需要重新进行注册
 #### Zone以及Region 设计
+
 #### SelfPreServation设计
 
 
