@@ -99,7 +99,21 @@ eureka server在 在执行复制操作的时候，使用HEAD_REPLICATION 的http
 - 如果请求参数的lastDirtyTimeStamp值小雨server本地实例，且是peer节点的复制请求，标示数据冲突，返回409给peer节点，要求其同步自己最新的数据信息。
 peer节点的相互复制并不能保证所有操作都能成功，如果发现应用实例数据和某个server的数据不一致，应用实例需要重新进行注册
 #### Zone以及Region 设计
+由于netflix的服务大部分在amazon上，因此eureka的设计有一部分也是基于amazon的zone以及region的基础设施之上。
+amazone ec2托管在全球的各个地方，他用region来代表一个独立的地理区域。在每个region下边，设置了多个availabilityZone，一个region对应多个zone.
+每个region之间是相互独立以及隔离的，默认情况下资源只在单个region之间的zone进行复制，跨region不会进行资源复制。
+zone可以堪称region下边的机房，主要是为了region的高可用设计，当同一个region下边的zone不可用时，还有其他zone可用。由于不同的region不可以进行
+资源复制，所以eureka 的高可用是region下边的高可用
+eureka client支持preferSameZone，获取eureka server的serviceUrl优先拉取和应用实例处于同一个zone的eureka server地址列表。
+一个zone下边可以设置多个eureka server实例，构成peer节点，节点采用peer to peer复制
+netflix的ribbon组建针对多个zone提供了zoneAffinity支持，允许客户端路由或者网关路由时，优先园区与自身处于同一个zone的服务实例
 
 #### SelfPreServation设计
+在分布式系统设计里边，通常需要对应用的存活进行健康检查，这里比较关键的问题就是处理好网络偶尔抖动 或者 短暂不可用造成的误判。
+另外eureka server端与client端 之间如果出现网络分区，极端情况下可能使得eureka server清空部分服务的实例列表，严重影响到uereka server的可用性。
+因此，eureka server 引入了 selfpreservation机制
+client 和 server端 之间有一个租约，client要定时发送心跳来维持这个租约，标示自己还活着，uereka 通过当前注册的实例数，去计算每分钟应该从应用实例
+接受到的心跳数。如果最近一分钟收到的续约次数小于制定的阈值的化，关闭租约失效剔除，禁止定时任务删除失效的实例，保护注册信息
 
+### eureka 参数调优以及监控
 
