@@ -116,4 +116,123 @@ client 和 server端 之间有一个租约，client要定时发送心跳来维�
 接受到的心跳数。如果最近一分钟收到的续约次数小于制定的阈值的化，关闭租约失效剔除，禁止定时任务删除失效的实例，保护注册信息
 
 ### eureka 参数调优以及监控
+#### 核心参数
+主要分为client端 和 server两大类来建树以下eureka的几个核心参数
+##### client端
+client端的参数分为基本参数  ，定时任务参数，http参数 三大类来梳理
+1）基本参数如下表
+
+| 参数 | 默认值 | 说明 |
+| ----- | ----- | -------- |
+|eureka.client.availability-zones||告知client有些region以及availability-zones,支持配置修改运行时生效|
+|eureka.client.filter-only-instances| true| 是否过滤出InstanceStatus 为 up的实例|
+|eureka.client.region|us-east-1|指定该应用实例所在的region，asw datacenter适用|
+|eureka.client.register-with-eureka|true|是否将应用实例注册到eureka server|
+|eureka.client.prefer-same-zone-eureka|true|是否优先使用与该实例处于同zone的eureka server|
+|eureka.client.on-demand-upate-status-change|true|是否将本地实例状态的更新通过ApplicationInfoManager实时触发同步到eureka server|
+|eureka.instance.metadata-map||指定应用实例的元数据信息|
+|eureka.instance.prefer-ip-address|false|是否优先使用ip地址来代替host name作为实例的hostName字段值|
+|eureka.instance.lease-expiration-duration-in-seconds|90|指定eureka client间隔多久需要向 server发送心跳告知server实例还存活|
+
+2）定时任务参数如下表
+
+| 参数 | 默认值 | 说明 |
+| ----- | ----- | -------- |
+|eureka.client.cache-refresh-executor-thread-pool-size|2|刷新缓存的CacheRefreshThread的线程池大小|
+|eureka.client.cache-refresh-executor-exponential-back-off-bound|10|调度任务执行超时时下次的调度延时时间|
+|eureka.client.heartbeat-executor-thread-pool-size|2|心跳线程HeartbeatThread的线程池大小|
+|eureka.client.heartbeat-executor-exponential-back-off-bound|10|调度任务执行超时时下次的调度延时时间|
+|eureka.client.registry-fetch-interval-seconds|30|CacheRefreshThread线程的调度频率|
+|eureka.client.eureka-service-url-poll-interval-seconds|5*60|AsyncResolver.updateTask刷新Eureka server地址的时间间隔|
+|eureka.client.initial-instance-info-replication-interval-seconds|40|InstanceInfoReplicator将实例信息变更同步到eureka serve的初始延长时间|
+|eureka.client.initial-info-replication-interval-seconds|30|InstanceInfoReplicator将实例信息变更同步到eureka serve的时间间隔|
+|eureka.instance.lease-renewal-interval-in-seconds|30|eureka client向 eureka server发送心跳的时间间隔|
+
+3）http参数，eureka client底层 http client 与 eureka server通信，提供的参数如下表
+
+| 参数 | 默认值 | 说明 |
+| ----- | ----- | -------- |
+|eureka.client.eureka-server-connect-timeout-seconds|5|连接超时时间|
+|eureka.client.eureka-server-read-timeout-seconds|8|读超时时间|
+|eureka.client.eureka-server-total-connections|200|连接池最大活动连接数|
+|eureka.client.eureka-server-total-connections-per-host|50|每个host能使用的最大连接数|
+|eureka.client.eureka-connection-idle-timeout-seconds|30|连接池中连接的空闲时间|
+
+##### server端
+server端 的参数分为如下几类，基本参数，response cache参数，peer相关参数，http参数
+
+1）基本参数
+
+| 参数 | 默认值 | 说明 |
+| ----- | ----- | -------- |
+|eureka.server.enable-self-preservation|true|是否开启自我保护模式|
+|eureka.server.renewal-percent-threshold|0.85|每分钟需要收到的续约次数的阈值|
+|eureka.instance.registry.expected-number-of-renews-per-min|1|指定的每分钟需要收到的续约次数值，实际该值被写死为count*2，另外也会被更新|
+|eureka.server.renewal-threshold-update-interval-ms|15min|指定updateRenewalThreshold定时任务的调度频率，来动态更新expectedNumberOfRenewsPerMin 及 numberOfRenewsPerMinThreshold值|
+|eureka.server.eviction-interval-timer-in-ms|60*1000|指定EvictionTask定时任务的调度频率，用于剔除过期的实例|
+
+2）response cache
+eureka server为了提升自身的REST API接口的性能，提供了两个缓存，一个是基于ConcurrentMap的readOnlyCacheMap，一个是基于Guava Cache的 
+readWriteCacheMap。参数表如下
+
+| 参数 | 默认值 | 说明 |
+| ----- | ----- | -------- |
+|eureka.server.use-read-only-response-cache|true|是否使用制度的response-cache|
+|eureka.server.response-cache-update-interval-ms|30*1000|设置CacheUpdateTask的调度时间间隔，用于readWriteCacheMap更新数据到readOnlyCacheMap|
+|eureka.server.reponse-cache-auto-expiration-in-seconds|180|设置readWriteCacheMap的expireAfterWrite参数，指定写入多久后过期|
+
+
+3）peer参数
+
+
+| 参数 | 默认值 | 说明 |
+| ----- | ----- | -------- |
+|eureka.server.peer-eureka-nodes-update-interval-ms|10min|指定peersUpdateTask调度的时间间隔，用于配置文件刷新peerEurekaNodes节点的配置信息|
+|eureka.server.peer-eureka-status-refresh-time-interval-ms|30*1000|指定更新peer nodes状态信息的时间间隔（目前没有看到代码中有使用）|
+
+4）http参数
+
+| 参数 | 默认值 | 说明 |
+| ----- | ----- | -------- |
+|eureka.server.peer-node-connect-timeout-ms|200|连接超时时间|
+|eureka.server.peer-node-read-timeout-ms|200|读超时时间|
+|eureka.server.peer-node-total-connections|1000|连接池最大活动连接数|
+|eureka.server.peer-node-total-connections-per-host|5000|每个host能使用的最大连接数|
+|eureka.server.peer-node-connection-idle-timeout-seconds|30|连接池中连接的空闲时间|
+
+#### 参数调优
+1. 常见问题
+对于新接触eureka的开发人员来说，一般会有几个困惑
+- 为什么服务下线了，eureka server接口返回的信息还会存在
+- 为什么服务上线了，eureka client不能及时获取到
+- 为什么有时候会出现 EMEGNENCY 的提示
+
+2. 解决方案
+对于第一个问题，eureka server并不是强一致性的，因此registy 会保留过期的实例信息，这里又分为几个原因：
+- 应用实例异常挂掉，没能在挂掉之前告诉eureka server要下线掉该服务实例信息。就需要以来Eureka server的Eviction Task去剔除
+- 应用实例下线时有告诉Eureka Server下线，但是由于Eureka server的REST API有response cache，因此需要等待缓存过期才能更新。
+- eureka server由于开启并引入了SELF PRESERVATION 模式，导致registry的信息不会因为过期而被剔除，直到退出该模式
+
+针对client下线没有通知eureka server的问题，可以调整 Eviction Task的调度频率，比如将下边配置将调度间隔从默认的60秒，调整为5秒：
+```text
+eureka.server.eviction-interval-timer-in-ms=5000
+```
+针对第二个reponse cache，可以根据情况考虑关闭readonlyCacheMap:
+```text
+eureka.server.use-read-only-response-cache=false
+```
+活着调整readWriteCacheMap过期时间：
+```text
+eureka.server.reponse-cache-auto-exporation-in-seconds=60
+```
+针对SELF PRESERVATION的问题，在测试环境中可以将enable-self-preservation设置为false:
+eureka.server.enable-self-preservation=false
+
+针对新服务上线，eureka client获取信息不及时的问题，在测试环境中，可以适当提高client端 拉取server注册信息的频率，例如下面的默认30秒改5秒：
+```text
+eureka.client.registry-fetch-interval-seconds=5
+```
+
+在生产环境中，可以把renewalPercentThreshold 以及 leaseRenewalIntervalInSeconds参数调小一点，进而提高触发 SELF PRESERVATION机制的
+门槛。
 
